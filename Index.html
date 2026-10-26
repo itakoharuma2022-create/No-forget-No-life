@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>お出かけチェック</title>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&display=swap" rel="stylesheet">
+<script>try{var t=localStorage.getItem('theme');if(t&&t!=='auto')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
@@ -14,7 +15,9 @@
 :root[data-theme="dark"]{--bg:#141311;--sf:#1b1a17;--ink:#ece8de;--mu:#8d887c;--ln:#2e2c27;--ac:#ff6a4d;--ok:#6cc499;color-scheme:dark}
 *{box-sizing:border-box;margin:0}
 body{background:var(--bg);color:var(--ink);font:15px/1.6 "Zen Kaku Gothic New",system-ui,"Hiragino Sans",sans-serif;-webkit-tap-highlight-color:transparent}
-.wrap{max-width:520px;margin:0 auto;padding:24px 20px 96px}
+.wrap{max-width:520px;margin:0 auto;padding:56px 20px 96px}
+.theme{position:fixed;z-index:5;top:calc(env(safe-area-inset-top,0px) + 8px);right:10px;width:172px;grid-template-columns:repeat(3,1fr);box-shadow:0 8px 20px -12px rgba(0,0,0,.5)}
+.theme button{padding:6px 0;font-size:11px}
 .num{font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .lab{font-size:11px;letter-spacing:.16em;color:var(--mu);font-weight:700}
 .sec{border-top:1px solid var(--ln);padding:20px 0}
@@ -45,12 +48,30 @@ input:focus,button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
 .bars i{flex:1;background:var(--ink);min-height:2px}
 .lnk{font-size:12px;font-weight:700;color:var(--ac)}
 .flex{display:flex;gap:8px;align-items:center;justify-content:space-between}
+
+.card{background:var(--sf);border:1px solid var(--ln);padding:20px;box-shadow:0 14px 30px -22px rgba(0,0,0,.45)}
+.hero2{display:flex;flex-wrap:wrap;align-items:center;gap:24px;padding:26px;color:var(--bg);background:linear-gradient(135deg,var(--ink) 55%,color-mix(in srgb,var(--ink) 68%,var(--ac)));box-shadow:0 22px 40px -26px rgba(0,0,0,.6)}
+.hero2 .mu,.hero2 .lab{color:color-mix(in srgb,var(--bg) 66%,transparent)}
+.hero2 svg text{fill:var(--bg)!important}
+.hero2 svg circle:first-child{stroke:color-mix(in srgb,var(--bg) 25%,transparent)}
+.dash{display:grid;gap:16px;margin-top:4px}
+.col,.colC{display:grid;gap:16px;align-content:start}
+.tag.alt{color:var(--mu);border-color:var(--mu)}
+.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+.mini b{font-size:22px;display:block}
+.hero2{color:var(--ink);background:linear-gradient(135deg,var(--sf) 60%,color-mix(in srgb,var(--sf) 90%,var(--ac)));border:1px solid var(--ln);box-shadow:0 14px 30px -22px rgba(0,0,0,.45)}
+.hero2 .mu,.hero2 .lab{color:var(--mu)}
+.hero2 svg text{fill:var(--ink)!important}
+.hero2 svg circle:first-child{stroke:var(--ln)}
+@media(min-width:760px){.wrap.wide{max-width:1180px}.dash{grid-template-columns:1fr 1fr}.span2{grid-column:1/-1}}
+@media(min-width:760px) and (max-width:1099px){.colC{grid-column:1/-1;grid-template-columns:1fr 1fr}}
+@media(min-width:1100px){.dash{grid-template-columns:1fr 1.05fr .95fr}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect}=React;
+const {useState,useEffect,useRef}=React;
 const DAYS=['日','月','火','水','木','金','土'];
 const DAYKEYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const WS=['晴','雨','寒','暑','風'];
@@ -95,7 +116,10 @@ function Ring({p,a,b}){
 }
 
 function CheckView(){
-  const now=new Date(),today=dateKey(now),dow=now.getDay();
+  const [now,setNow]=useState(new Date());
+  useEffect(()=>{const t=setInterval(()=>setNow(new Date()),1000);return()=>clearInterval(t)},[]);
+  const [d0]=useState(new Date());
+  const today=dateKey(d0),dow=d0.getDay();
   const [sch]=useState(()=>jget('schedule_'+DAYKEYS[dow],null));
   const [sv]=useState(()=>jget('daily_'+today,{}));
   const [demoPlan,setDemoPlan]=useState(null);
@@ -106,19 +130,56 @@ function CheckView(){
   const [reason,setReason]=useState(sv.reason||'');
   const [checked,setChecked]=useState(sv.checked||{});
   const [conf,setConf]=useState(sv.conf||{});
+  const [dep,setDep]=useState(sv.dep||jget('dep_default','08:30'));
+  const [extra,setExtra]=useState(sv.extra||[]);
   const [family,setFamily]=useState(()=>jget('family',[]));
+  const [feed,setFeed]=useState([]);
   const [newName,setNewName]=useState('');
+  const [newItem,setNewItem]=useState('');
   const [place,setPlace]=useState('');
   const [wInfo,setWInfo]=useState('');
   const [wErr,setWErr]=useState('');
   const [wBusy,setWBusy]=useState(false);
-  const apply=idx=>{
-    setW(idx);
-    const r=localSuggest(plan,idx,base);
-    setAi(r.add);setReason(r.reason);
-    setChecked(c=>Object.fromEntries(Object.entries(c).filter(([k])=>k[0]==='b')));
+  const [week]=useState(()=>DAYKEYS.map(k=>jget('schedule_'+k,null)));
+  const timers=useRef([]);
+  const list=[...base.map(t=>({id:'b:'+t,text:t})),...ai.map(t=>({id:'a:'+t,text:t,tag:'AI'})),...extra.map(t=>({id:'x:'+t,text:t,tag:'今日'}))];
+  const done=list.filter(i=>checked[i.id]).length,left=list.length-done;
+  const rate=list.length?Math.round(done/list.length*100):0;
+  const adopt=ai.length?Math.round(ai.filter(t=>checked['a:'+t]).length/ai.length*100):null;
+  const [hh,mm]=(dep||'08:30').split(':').map(Number);
+  const sec=Math.round((new Date(d0.getFullYear(),d0.getMonth(),d0.getDate(),hh||0,mm||0,0)-now)/1000);
+  const fmt=s=>{const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?`${h}時間${m}分`:`${m}分${pad(s%60)}秒`};
+  const cd=sec>0?`出発まで ${fmt(sec)}`:`出発時刻を過ぎました（${fmt(-sec)}経過）`;
+  const warn=left>0&&sec<=1800;
+  const fDone=family.filter(f=>conf[f.id]).length,hasDemo=family.some(f=>f.demo);
+  const stamp=()=>{const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())};
+
+  useEffect(()=>{jset('daily_'+today,{w,ai,reason,checked,conf,dep,extra})},[w,ai,reason,checked,conf,dep,extra]);
+  useEffect(()=>{jset('family',family.filter(f=>!f.demo))},[family]);
+  useEffect(()=>{jset('history',{...jget('history',{}),[today]:{rate,total:list.length,adopt}})},[rate,list.length,adopt]);
+  useEffect(()=>()=>timers.current.forEach(clearTimeout),[]);
+  const notified=useRef('');
+  useEffect(()=>{
+    if(sec<=0&&sec>-60&&left>0&&notified.current!==dep){
+      notified.current=dep;
+      try{if('speechSynthesis' in window){const u=new SpeechSynthesisUtterance(`出発の時間です。まだ確認していない持ち物が${left}個あります。`);u.lang='ja-JP';speechSynthesis.speak(u)}}catch(e){}
+    }
+  },[sec,left,dep]);
+
+  const speak=(add,why)=>{
+    try{
+      if(!('speechSynthesis' in window))return;
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(`今日、${DAYS[dow]}曜日の予定は「${plan}」です。お天気は${WEATHERS[w]}です。持ち物の確認です。${[...base,...add].join('、')}。${why}`);
+      u.lang='ja-JP';u.rate=0.95;speechSynthesis.speak(u);
+    }catch(e){}
   };
+  const keepNonAi=c=>Object.fromEntries(Object.entries(c).filter(([k])=>k[0]!=='a'));
+  const apply=idx=>{setW(idx);const r=localSuggest(plan,idx,base);setAi(r.add);setReason(r.reason);setChecked(keepNonAi)};
+  const run=()=>{const r=localSuggest(plan,w,base);setAi(r.add);setReason(r.reason);setChecked(keepNonAi);speak(r.add,r.reason)};
   const cycle=()=>{setWInfo('');setWErr('');apply((w+1)%5)};
+  const demo=()=>{setDemoPlan('通院');apply(1)};
+  const endDemo=()=>{setDemoPlan(null);setW(0);setAi([]);setReason('');setChecked({})};
   const getWeather=async mode=>{
     setWBusy(true);setWErr('');setWInfo('');
     try{
@@ -132,93 +193,112 @@ function CheckView(){
       }
       const r=await fetchWeather(lat,lon);
       apply(r.idx);setWInfo(name+'：'+r.info);
-    }catch(e){
-      setWErr(e instanceof TypeError?'通信できませんでした。公開ページでは外部通信が制限されるため、ファイルを自分のブラウザで直接開くと使えます。':(e.message||'取得に失敗しました'));
-    }
+    }catch(e){setWErr(e instanceof TypeError?'通信できませんでした。公開ページでは外部通信が制限されます。GitHub Pagesなど自分のURLで開くと使えます。':(e.message||'取得に失敗しました'))}
     setWBusy(false);
   };
-  const list=[...base.map(t=>({id:'b:'+t,text:t,isAi:false})),...ai.map(t=>({id:'a:'+t,text:t,isAi:true}))];
-  const done=list.filter(i=>checked[i.id]).length;
-  const rate=list.length?Math.round(done/list.length*100):0;
-  const adopt=ai.length?Math.round(ai.filter(t=>checked['a:'+t]).length/ai.length*100):null;
-
-  useEffect(()=>{jset('daily_'+today,{w,ai,reason,checked,conf})},[w,ai,reason,checked,conf]);
-  useEffect(()=>{jset('family',family)},[family]);
-  useEffect(()=>{jset('history',{...jget('history',{}),[today]:{rate,total:list.length,adopt}})},[rate,list.length,adopt]);
-
-  const speak=(add,why)=>{
-    try{
-      if(!('speechSynthesis' in window))return;
-      speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(`今日、${DAYS[dow]}曜日の予定は「${plan}」です。お天気は${WEATHERS[w]}です。持ち物の確認です。${[...base,...add].join('、')}。${why}`);
-      u.lang='ja-JP';u.rate=0.95;speechSynthesis.speak(u);
-    }catch(e){}
-  };
-  const run=()=>{
-    const r=localSuggest(plan,w,base);
-    setAi(r.add);setReason(r.reason);
-    setChecked(c=>Object.fromEntries(Object.entries(c).filter(([k])=>k[0]==='b')));
-    speak(r.add,r.reason);
-  };
-  const demo=()=>{setDemoPlan('通院');setW(1);const r=localSuggest('通院',1,base);setAi(r.add);setReason(r.reason);setChecked({})};
-  const endDemo=()=>{setDemoPlan(null);setW(0);setAi([]);setReason('');setChecked({})};
   const toggle=id=>setChecked(c=>({...c,[id]:!c[id]}));
+  const addItem=()=>{const t=newItem.trim();if(!t||list.some(i=>i.text===t))return;setExtra([...extra,t]);setNewItem('')};
+  const logFeed=(t,n)=>setFeed(x=>[t+'  '+n+' が確認しました'].concat(x).slice(0,5));
   const addMember=()=>{const n=newName.trim();if(!n)return;setFamily([...family,{id:Date.now(),name:n}]);setNewName('')};
-  const confirmMember=id=>setConf(c=>{const n={...c};if(n[id])delete n[id];else{const d=new Date();n[id]=pad(d.getHours())+':'+pad(d.getMinutes())}return n});
+  const confirmMember=f=>{if(conf[f.id])setConf(c=>{const n={...c};delete n[f.id];return n});else{const t=stamp();setConf(c=>({...c,[f.id]:t}));logFeed(t,f.name)}};
   const delMember=id=>{setFamily(family.filter(f=>f.id!==id));setConf(c=>{const n={...c};delete n[id];return n})};
+  const clearDemoConf=c=>Object.fromEntries(Object.entries(c).filter(([k])=>k.slice(0,4)!=='demo'));
+  const famDemo=()=>{
+    timers.current.forEach(clearTimeout);timers.current=[];
+    const dm=['お母さん','お父さん','妹'].map((n,i)=>({id:'demo'+i,name:n,demo:true}));
+    setFamily(f=>[...f.filter(x=>!x.demo),...dm]);setConf(clearDemoConf);setFeed([]);
+    dm.forEach((f,i)=>timers.current.push(setTimeout(()=>{const t=stamp();setConf(c=>({...c,[f.id]:t}));logFeed(t,f.name)},1500*(i+1))));
+  };
+  const endFamDemo=()=>{timers.current.forEach(clearTimeout);setFamily(f=>f.filter(x=>!x.demo));setConf(clearDemoConf);setFeed([])};
 
-  return <div>
-    <p className="lab">TODAY</p>
-    <h1 className="num big" style={{fontSize:44}}>{now.getMonth()+1}.{pad(now.getDate())}<span style={{fontSize:18,marginLeft:8,color:'var(--mu)'}}>{DAYS[dow]}曜日</span></h1>
-    <div className="hero" style={{margin:'24px 0'}}>
+  return <div className="dash">
+    <div className="hero2 span2">
+      <div style={{flex:'1 1 250px'}}>
+        <p className="lab">TODAY</p>
+        <h1 className="num" style={{fontSize:40,fontWeight:900,lineHeight:1.1}}>{d0.getMonth()+1}.{pad(d0.getDate())}<span className="mu" style={{fontSize:16,marginLeft:8}}>{DAYS[dow]}曜日</span></h1>
+        <p className="num" style={{fontSize:56,fontWeight:900,lineHeight:1.1,marginTop:6}}>{pad(now.getHours())}:{pad(now.getMinutes())}</p>
+        <div className="flex" style={{justifyContent:'flex-start',marginTop:10}}>
+          <span className="lab">出発時刻</span>
+          <input type="time" value={dep} onChange={e=>{setDep(e.target.value);jset('dep_default',e.target.value)}} style={{width:'auto',padding:'6px 8px'}}/>
+        </div>
+        <p style={{marginTop:8,fontWeight:700}}>{warn?'⚠ ':''}{cd}{warn?` ・ 未確認が${left}個`:''}</p>
+        <button className="lnk" style={{marginTop:6}} onClick={()=>{const t=new Date(Date.now()+5*60000);setDep(pad(t.getHours())+':'+pad(t.getMinutes()))}}>5分後に設定（発表用）</button>
+      </div>
       <Ring p={rate} a={done} b={list.length}/>
-      <div className="kv">
+      <div className="kv" style={{flex:'1 1 200px'}}>
         <div><span className="lab">予定</span><b>{plan}</b></div>
         <div><span className="lab">天気</span><b>{WEATHERS[w]}</b></div>
-        <div><span className="lab">AI提案</span><b>{ai.length?ai.length+'件':'未判定'}</b></div>
+        <div className="mini">
+          <div><span className="lab">合計</span><b className="num">{list.length}</b></div>
+          <div><span className="lab">AI提案</span><b className="num">{ai.length}</b></div>
+          <div><span className="lab">残り</span><b className="num">{left}</b></div>
+        </div>
       </div>
     </div>
-    <p className="lab" style={{marginBottom:8}}>天候を選ぶ</p>
-    <div className="seg" role="group" aria-label="天候">{WS.map((x,i)=><button key={i} className={w===i?'on':''} onClick={()=>setW(i)} aria-pressed={w===i}>{x}</button>)}</div>
-    <div className="flex" style={{marginTop:12}}>
-      <input placeholder="地名で天気を取得（例：潮来市）" value={place} onChange={e=>setPlace(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')getWeather('place')}}/>
-      <button className="btn" style={{width:'auto',padding:'12px 16px',flex:'none'}} onClick={()=>getWeather('place')}>取得</button>
+
+    <div className="col">
+      <div className="card">
+        <p className="lab" style={{marginBottom:8}}>天候を選ぶ</p>
+        <div className="seg" role="group" aria-label="天候">{WS.map((x,i)=><button key={i} className={w===i?'on':''} onClick={()=>setW(i)} aria-pressed={w===i}>{x}</button>)}</div>
+        <div className="flex" style={{marginTop:12}}>
+          <input placeholder="地名で天気を取得（例：潮来市）" value={place} onChange={e=>setPlace(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')getWeather('place')}}/>
+          <button className="btn" style={{width:'auto',padding:'12px 16px',flex:'none'}} onClick={()=>getWeather('place')}>取得</button>
+        </div>
+        <div className="flex" style={{marginTop:8,justifyContent:'flex-start',gap:18}}>
+          <button className="lnk" onClick={()=>getWeather('gps')}>現在地から取得</button>
+          <button className="lnk" onClick={cycle}>天気を切替（発表用）</button>
+        </div>
+        {wBusy&&<p className="mu" style={{marginTop:8}}>取得中…</p>}
+        {wInfo&&<p className="mu num" style={{marginTop:8}}>{wInfo}</p>}
+        {wErr&&<p className="mu" style={{marginTop:8,color:'var(--ac)'}}>{wErr}</p>}
+        <button className="btn" style={{marginTop:12}} onClick={run}>{reason?'AIで再判定':'AIチェックを開始'}</button>
+        <div className="flex" style={{marginTop:12,justifyContent:'center'}}>{demoPlan?<button className="lnk" onClick={endDemo}>デモを終了</button>:<button className="lnk" onClick={demo}>デモを実行（発表用：通院 × 雨）</button>}</div>
+      </div>
+      {reason&&<div className="card" style={{borderLeft:'3px solid var(--ac)'}}>
+        <div className="flex"><span className="lab">ADVICE</span><button className="lnk" onClick={()=>speak(ai,reason)}>音声で聞く</button></div>
+        <p style={{fontSize:14,marginTop:4}}>{reason}</p>
+      </div>}
     </div>
-    <div className="flex" style={{marginTop:8,justifyContent:'flex-start',gap:18}}>
-      <button className="lnk" onClick={()=>getWeather('gps')}>現在地から取得</button>
-      <button className="lnk" onClick={cycle}>天気を切替（発表用）</button>
-    </div>
-    {wBusy&&<p className="mu" style={{marginTop:8}}>取得中…</p>}
-    {wInfo&&<p className="mu num" style={{marginTop:8}}>{wInfo}</p>}
-    {wErr&&<p className="mu" style={{marginTop:8,color:'var(--ac)'}}>{wErr}</p>}
-    <button className="btn" style={{marginTop:12}} onClick={run}>{reason?'AIで再判定':'AIチェックを開始'}</button>
-    <div className="flex" style={{marginTop:12,justifyContent:'center'}}>{demoPlan?<button className="lnk" onClick={endDemo}>デモを終了</button>:<button className="lnk" onClick={demo}>デモを実行（発表用：通院 × 雨）</button>}</div>
-    {reason&&<div style={{borderLeft:'3px solid var(--ac)',padding:'4px 0 4px 14px',margin:'20px 0 0'}}>
-      <div className="flex"><span className="lab">ADVICE</span><button className="lnk" onClick={()=>speak(ai,reason)}>音声で聞く</button></div>
-      <p style={{fontSize:14}}>{reason}</p>
-    </div>}
-    <div className="sec" style={{marginTop:24,paddingBottom:0}}>
+
+    <div className="card">
       <div className="flex"><span className="lab">持ち物 {done}/{list.length}</span><button className="lnk" onClick={()=>setChecked({})}>リセット</button></div>
       {list.map(i=><div key={i.id} className="row" onClick={()=>toggle(i.id)} role="checkbox" aria-checked={!!checked[i.id]}>
         <span className={'box'+(checked[i.id]?' on':'')}>{checked[i.id]?'✓':''}</span>
         <span className={checked[i.id]?'done':''} style={{flex:1,fontWeight:700}}>{i.text}</span>
-        {i.isAi&&<span className="tag">AI</span>}
+        {i.tag&&<span className={'tag'+(i.tag==='AI'?'':' alt')}>{i.tag}</span>}
+        {i.tag==='今日'&&<button className="mu" aria-label="削除" onClick={e=>{e.stopPropagation();setExtra(extra.filter(x=>x!==i.text))}}>✕</button>}
       </div>)}
+      {list.length>0&&left===0&&<p style={{margin:'16px 0 0',fontWeight:900,fontSize:18,color:'var(--ok)'}}>✓ 準備完了。いってらっしゃい。</p>}
+      <div className="flex" style={{marginTop:14}}>
+        <input placeholder="今日だけ持っていく物を追加" value={newItem} onChange={e=>setNewItem(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addItem()}}/>
+        <button className="btn" style={{width:'auto',padding:'12px 18px',flex:'none'}} onClick={addItem}>追加</button>
+      </div>
     </div>
-    {list.length>0&&done===list.length&&<p style={{margin:'20px 0',fontWeight:900,fontSize:18,color:'var(--ok)'}}>✓ 準備完了。いってらっしゃい。</p>}
-    <div className="sec" style={{marginTop:24}}>
-      <span className="lab">家族の確認</span>
-      {family.length===0&&<p className="mu" style={{margin:'8px 0'}}>名前を追加すると、出発前の確認時刻を記録できます。</p>}
-      {family.map(f=><div key={f.id} className="row" style={{padding:'10px 0'}}>
-        <span className="flex" style={{flex:1,justifyContent:'flex-start',gap:14}} onClick={()=>confirmMember(f.id)}>
-          <span className={'box'+(conf[f.id]?' on':'')} style={{borderRadius:'50%'}}>{conf[f.id]?'✓':''}</span>
-          <span><b>{f.name}</b><br/><span className="mu num">{conf[f.id]?'確認 '+conf[f.id]:'確認待ち'}</span></span>
-        </span>
-        <button className="mu" onClick={()=>delMember(f.id)} aria-label="削除">✕</button>
-      </div>)}
-      <div className="flex" style={{marginTop:12}}>
-        <input placeholder="家族の名前" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addMember()}}/>
-        <button className="btn" style={{width:'auto',padding:'12px 18px',flex:'none'}} onClick={addMember}>追加</button>
+
+    <div className="colC">
+      <div className="card">
+        <div className="flex"><span className="lab">家族の確認</span><span className="mu num">{family.length?fDone+' / '+family.length+' 確認済み':''}</span></div>
+        {family.length>0&&fDone===family.length&&<p style={{fontWeight:900,color:'var(--ok)',margin:'6px 0 0'}}>✓ 家族全員が確認済み</p>}
+        {family.length===0&&<p className="mu" style={{margin:'8px 0'}}>名前を追加するか、デモで動きを確認できます。</p>}
+        {family.map(f=><div key={f.id} className="row" style={{padding:'10px 0'}}>
+          <span className="flex" style={{flex:1,justifyContent:'flex-start',gap:14}} onClick={()=>confirmMember(f)}>
+            <span className={'box'+(conf[f.id]?' on':'')} style={{borderRadius:'50%'}}>{conf[f.id]?'✓':''}</span>
+            <span><b>{f.name}</b>{f.demo&&<span className="tag alt" style={{marginLeft:8}}>DEMO</span>}<br/><span className="mu num">{conf[f.id]?'確認 '+conf[f.id]:'確認待ち'}</span></span>
+          </span>
+          <button className="mu" onClick={()=>delMember(f.id)} aria-label="削除">✕</button>
+        </div>)}
+        {feed.length>0&&<div style={{margin:'12px 0 0',paddingLeft:12,borderLeft:'2px solid var(--ln)'}}>{feed.map((x,i)=><p key={i} className="mu num">{x}</p>)}</div>}
+        <div className="flex" style={{marginTop:12}}>
+          <input placeholder="家族の名前" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addMember()}}/>
+          <button className="btn" style={{width:'auto',padding:'12px 18px',flex:'none'}} onClick={addMember}>追加</button>
+        </div>
+        <div className="flex" style={{marginTop:12,justifyContent:'center'}}>{hasDemo?<button className="lnk" onClick={endFamDemo}>家族デモを終了</button>:<button className="lnk" onClick={famDemo}>家族デモを実行（発表用）</button>}</div>
+      </div>
+      <div className="card">
+        <span className="lab">今週の予定</span>
+        {week.map((x,i)=><div key={i} className="flex" style={{padding:'7px 0',borderBottom:'1px solid var(--ln)',fontWeight:i===dow?900:400,color:i===dow?'var(--ink)':'var(--mu)'}}>
+          <span style={{width:24}}>{DAYS[i]}</span><span style={{flex:1}}>{(x&&x.plan)||'—'}</span><span className="num">{x&&x.items?x.items.length:0}個</span>
+        </div>)}
       </div>
     </div>
   </div>;
@@ -279,7 +359,7 @@ function LogView(){
     </>}
     <div className="sec" style={{marginTop:24}}>
       <span className="lab">VERSION</span>
-      <p style={{fontSize:14,marginTop:6}}><b>v3.0</b> UIを全面刷新（ライト／ダーク自動対応）。</p>
+      <p style={{fontSize:14,marginTop:6}}><b>v3.1</b> 大画面レイアウト、出発カウントダウン、今日だけの持ち物、家族デモを追加。</p>
       <p className="mu">統計はこの端末のブラウザに保存された記録から計算しています。</p>
     </div>
     <div className="sec" style={{marginTop:24}}>
@@ -298,8 +378,15 @@ class Boundary extends React.Component{
 }
 function App(){
   const [tab,setTab]=useState('check');
+  const [theme,setTheme]=useState(()=>{try{return localStorage.getItem('theme')||'auto'}catch(e){return 'auto'}});
+  useEffect(()=>{
+    const r=document.documentElement;
+    if(theme==='auto')r.removeAttribute('data-theme');else r.setAttribute('data-theme',theme);
+    try{localStorage.setItem('theme',theme)}catch(e){}
+  },[theme]);
   return <>
-    <Boundary><main className="wrap">{tab==='check'?<CheckView/>:tab==='weekly'?<WeeklyView/>:<LogView/>}</main></Boundary>
+    <Boundary><main className={'wrap'+(tab==='check'?' wide':'')}>{tab==='check'?<CheckView/>:tab==='weekly'?<WeeklyView/>:<LogView/>}</main></Boundary>
+    <div className="seg theme" role="group" aria-label="表示モード">{[['auto','自動'],['light','ライト'],['dark','ダーク']].map(([k,l])=><button key={k} className={theme===k?'on':''} aria-pressed={theme===k} onClick={()=>setTheme(k)}>{l}</button>)}</div>
     <nav className="bar">{[['check','今日'],['weekly','週間設定'],['log','記録']].map(([k,l])=><button key={k} className={tab===k?'on':''} onClick={()=>setTab(k)}>{l}</button>)}</nav>
   </>;
 }
