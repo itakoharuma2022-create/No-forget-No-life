@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>お出かけチェック</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<style>
+:root{--bg:#f4f1ea;--sf:#fbfaf6;--ink:#1c1b19;--mu:#7a766c;--ln:#dedad0;--ac:#d9381e;--ok:#2f6f4e;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141311;--sf:#1b1a17;--ink:#ece8de;--mu:#8d887c;--ln:#2e2c27;--ac:#ff6a4d;--ok:#6cc499;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#141311;--sf:#1b1a17;--ink:#ece8de;--mu:#8d887c;--ln:#2e2c27;--ac:#ff6a4d;--ok:#6cc499;color-scheme:dark}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 "Zen Kaku Gothic New",system-ui,"Hiragino Sans",sans-serif;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:520px;margin:0 auto;padding:24px 20px 96px}
+.num{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.lab{font-size:11px;letter-spacing:.16em;color:var(--mu);font-weight:700}
+.sec{border-top:1px solid var(--ln);padding:20px 0}
+.mu{color:var(--mu);font-size:12px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.btn{width:100%;padding:16px;background:var(--ink);color:var(--bg);font-weight:700;letter-spacing:.1em}
+.btn:active{opacity:.75}
+.seg{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--ln);background:var(--sf)}
+.seg button{padding:10px 0;font-size:13px;font-weight:700;color:var(--mu)}
+.seg button+button{border-left:1px solid var(--ln)}
+.seg .on{background:var(--ink);color:var(--bg)}
+.row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--ln);cursor:pointer;user-select:none}
+.box{width:22px;height:22px;border:1.5px solid var(--ink);display:grid;place-items:center;flex:none;font-size:13px;font-weight:900}
+.box.on{background:var(--ink);color:var(--bg)}
+.tag{font-size:10px;font-weight:900;color:var(--ac);border:1px solid var(--ac);padding:0 5px;letter-spacing:.1em}
+.done{color:var(--mu);text-decoration:line-through}
+input{font:inherit;color:inherit;background:var(--sf);border:1px solid var(--ln);padding:12px;width:100%;border-radius:0}
+input:focus,button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.bar{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);background:var(--sf);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
+.bar button{padding:14px 0;font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--mu)}
+.bar .on{color:var(--ink);box-shadow:inset 0 2px 0 var(--ac)}
+.hero{display:flex;align-items:center;gap:20px}
+.kv{flex:1;display:grid;gap:10px}
+.kv b{display:block;font-size:15px}
+.big{font-size:30px;font-weight:900;line-height:1.1}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.bars{display:flex;align-items:flex-end;gap:8px;height:96px;border-bottom:1px solid var(--ink)}
+.bars i{flex:1;background:var(--ink);min-height:2px}
+.lnk{font-size:12px;font-weight:700;color:var(--ac)}
+.flex{display:flex;gap:8px;align-items:center;justify-content:space-between}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect}=React;
+const DAYS=['日','月','火','水','木','金','土'];
+const DAYKEYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const WS=['晴','雨','寒','暑','風'];
+const WEATHERS=['晴れ','雨・傘が必要','寒い・防寒','猛暑・熱中症注意','風が強い'];
+const DEFAULT_ITEMS=['財布','鍵','スマートフォン'];
+const pad=n=>String(n).padStart(2,'0');
+const dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const jget=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
+const jset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
+const WEATHER_RULES=[[1,['折りたたみ傘','タオル'],'雨に備えて折りたたみ傘とタオルを追加しました'],[2,['マフラー','カイロ'],'寒さに備えて防寒アイテムを追加しました'],[3,['水筒','帽子・日傘'],'熱中症対策に水分と日よけを追加しました'],[4,['羽織もの'],'風よけの上着を追加しました']];
+const PLAN_RULES=[[/病院|通院|診察|クリニック/,['診察券','お薬手帳','保険証'],'受診に必要なセットを追加しました'],[/学校|塾|授業|登校|勉強/,['筆記用具','学生証','ノート'],'学校・勉強用の持ち物を追加しました'],[/買い物|買物|スーパー|モール/,['エコバッグ','ポイントカード'],'買い物用にエコバッグ等を追加しました'],[/散歩|公園/,['飲み物','ポケットティッシュ'],'散歩用に飲み物等を追加しました']];
+function localSuggest(plan,w,base){
+  const items=[],why=[];
+  WEATHER_RULES.forEach(([i,it,r])=>{if(i===w){items.push(...it);why.push(r)}});
+  PLAN_RULES.forEach(([re,it,r])=>{if(re.test(plan)){items.push(...it);why.push(r)}});
+  const add=[...new Set(items)].filter(i=>!base.includes(i));
+  return {add,reason:add.length?why.join('。')+'。':'今日の予定と天気では、追加で必要そうな持ち物はありません。'};
+}
+const RAIN=[51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99],SNOW=[71,73,75,77,85,86];
+async function geocode(q){
+  const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=ja`);
+  const j=await r.json();
+  if(!j.results||!j.results.length)throw new Error('地名が見つかりませんでした');
+  const p=j.results[0];return {lat:p.latitude,lon:p.longitude,name:p.name};
+}
+async function fetchWeather(lat,lon){
+  const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code,wind_speed_10m&daily=precipitation_probability_max&timezone=auto&wind_speed_unit=ms`);
+  if(!r.ok)throw new Error('天気サービスがエラーを返しました（'+r.status+'）');
+  const j=await r.json(),c=j.current,d=j.daily&&j.daily.precipitation_probability_max,pp=(d&&d[0])||0;
+  const t=c.temperature_2m,v=c.wind_speed_10m;
+  const idx=(c.precipitation>0||pp>=60||RAIN.includes(c.weather_code))?1:(SNOW.includes(c.weather_code)||t<=8)?2:t>=33?3:v>=10?4:0;
+  return {idx,info:`${Math.round(t)}℃ / 降水確率${pp}% / 風${Math.round(v)}m/s`};
+}
+function Ring({p,a,b}){
+  const c=2*Math.PI*52;
+  return <svg viewBox="0 0 120 120" width="132" height="132" role="img" aria-label={'準備 '+p+'%'}>
+    <circle cx="60" cy="60" r="52" fill="none" stroke="var(--ln)" strokeWidth="6"/>
+    <circle cx="60" cy="60" r="52" fill="none" stroke={p===100?'var(--ok)':'var(--ac)'} strokeWidth="6" strokeDasharray={c} strokeDashoffset={c*(1-p/100)} transform="rotate(-90 60 60)" style={{transition:'stroke-dashoffset .4s'}}/>
+    <text x="60" y="64" textAnchor="middle" fontSize="28" fontWeight="900" fill="var(--ink)" className="num">{p}<tspan fontSize="12">%</tspan></text>
+    <text x="60" y="84" textAnchor="middle" fontSize="10" fill="var(--mu)" className="num">{a} / {b}</text>
+  </svg>;
+}
+
+function CheckView(){
+  const now=new Date(),today=dateKey(now),dow=now.getDay();
+  const [sch]=useState(()=>jget('schedule_'+DAYKEYS[dow],null));
+  const [sv]=useState(()=>jget('daily_'+today,{}));
+  const [demoPlan,setDemoPlan]=useState(null);
+  const plan=demoPlan||(sch&&sch.plan)||'お出かけ・日常使い';
+  const base=[...new Set(sch&&sch.items&&sch.items.length?sch.items:DEFAULT_ITEMS)];
+  const [w,setW]=useState(sv.w||0);
+  const [ai,setAi]=useState(sv.ai||[]);
+  const [reason,setReason]=useState(sv.reason||'');
+  const [checked,setChecked]=useState(sv.checked||{});
+  const [conf,setConf]=useState(sv.conf||{});
+  const [family,setFamily]=useState(()=>jget('family',[]));
+  const [newName,setNewName]=useState('');
+  const [place,setPlace]=useState('');
+  const [wInfo,setWInfo]=useState('');
+  const [wErr,setWErr]=useState('');
+  const [wBusy,setWBusy]=useState(false);
+  const apply=idx=>{
+    setW(idx);
+    const r=localSuggest(plan,idx,base);
+    setAi(r.add);setReason(r.reason);
+    setChecked(c=>Object.fromEntries(Object.entries(c).filter(([k])=>k[0]==='b')));
+  };
+  const cycle=()=>{setWInfo('');setWErr('');apply((w+1)%5)};
+  const getWeather=async mode=>{
+    setWBusy(true);setWErr('');setWInfo('');
+    try{
+      let lat,lon,name='現在地';
+      if(mode==='gps'){
+        const pos=await new Promise((ok,ng)=>navigator.geolocation?navigator.geolocation.getCurrentPosition(ok,ng,{timeout:8000}):ng(new Error('この端末は位置情報に対応していません')));
+        lat=pos.coords.latitude;lon=pos.coords.longitude;
+      }else{
+        if(!place.trim())throw new Error('地名を入力してください');
+        const g=await geocode(place.trim());lat=g.lat;lon=g.lon;name=g.name;
+      }
+      const r=await fetchWeather(lat,lon);
+      apply(r.idx);setWInfo(name+'：'+r.info);
+    }catch(e){
+      setWErr(e instanceof TypeError?'通信できませんでした。公開ページでは外部通信が制限されるため、ファイルを自分のブラウザで直接開くと使えます。':(e.message||'取得に失敗しました'));
+    }
+    setWBusy(false);
+  };
+  const list=[...base.map(t=>({id:'b:'+t,text:t,isAi:false})),...ai.map(t=>({id:'a:'+t,text:t,isAi:true}))];
+  const done=list.filter(i=>checked[i.id]).length;
+  const rate=list.length?Math.round(done/list.length*100):0;
+  const adopt=ai.length?Math.round(ai.filter(t=>checked['a:'+t]).length/ai.length*100):null;
+
+  useEffect(()=>{jset('daily_'+today,{w,ai,reason,checked,conf})},[w,ai,reason,checked,conf]);
+  useEffect(()=>{jset('family',family)},[family]);
+  useEffect(()=>{jset('history',{...jget('history',{}),[today]:{rate,total:list.length,adopt}})},[rate,list.length,adopt]);
+
+  const speak=(add,why)=>{
+    try{
+      if(!('speechSynthesis' in window))return;
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(`今日、${DAYS[dow]}曜日の予定は「${plan}」です。お天気は${WEATHERS[w]}です。持ち物の確認です。${[...base,...add].join('、')}。${why}`);
+      u.lang='ja-JP';u.rate=0.95;speechSynthesis.speak(u);
+    }catch(e){}
+  };
+  const run=()=>{
+    const r=localSuggest(plan,w,base);
+    setAi(r.add);setReason(r.reason);
+    setChecked(c=>Object.fromEntries(Object.entries(c).filter(([k])=>k[0]==='b')));
+    speak(r.add,r.reason);
+  };
+  const demo=()=>{setDemoPlan('通院');setW(1);const r=localSuggest('通院',1,base);setAi(r.add);setReason(r.reason);setChecked({})};
+  const endDemo=()=>{setDemoPlan(null);setW(0);setAi([]);setReason('');setChecked({})};
+  const toggle=id=>setChecked(c=>({...c,[id]:!c[id]}));
+  const addMember=()=>{const n=newName.trim();if(!n)return;setFamily([...family,{id:Date.now(),name:n}]);setNewName('')};
+  const confirmMember=id=>setConf(c=>{const n={...c};if(n[id])delete n[id];else{const d=new Date();n[id]=pad(d.getHours())+':'+pad(d.getMinutes())}return n});
+  const delMember=id=>{setFamily(family.filter(f=>f.id!==id));setConf(c=>{const n={...c};delete n[id];return n})};
+
+  return <div>
+    <p className="lab">TODAY</p>
+    <h1 className="num big" style={{fontSize:44}}>{now.getMonth()+1}.{pad(now.getDate())}<span style={{fontSize:18,marginLeft:8,color:'var(--mu)'}}>{DAYS[dow]}曜日</span></h1>
+    <div className="hero" style={{margin:'24px 0'}}>
+      <Ring p={rate} a={done} b={list.length}/>
+      <div className="kv">
+        <div><span className="lab">予定</span><b>{plan}</b></div>
+        <div><span className="lab">天気</span><b>{WEATHERS[w]}</b></div>
+        <div><span className="lab">AI提案</span><b>{ai.length?ai.length+'件':'未判定'}</b></div>
+      </div>
+    </div>
+    <p className="lab" style={{marginBottom:8}}>天候を選ぶ</p>
+    <div className="seg" role="group" aria-label="天候">{WS.map((x,i)=><button key={i} className={w===i?'on':''} onClick={()=>setW(i)} aria-pressed={w===i}>{x}</button>)}</div>
+    <div className="flex" style={{marginTop:12}}>
+      <input placeholder="地名で天気を取得（例：潮来市）" value={place} onChange={e=>setPlace(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')getWeather('place')}}/>
+      <button className="btn" style={{width:'auto',padding:'12px 16px',flex:'none'}} onClick={()=>getWeather('place')}>取得</button>
+    </div>
+    <div className="flex" style={{marginTop:8,justifyContent:'flex-start',gap:18}}>
+      <button className="lnk" onClick={()=>getWeather('gps')}>現在地から取得</button>
+      <button className="lnk" onClick={cycle}>天気を切替（発表用）</button>
+    </div>
+    {wBusy&&<p className="mu" style={{marginTop:8}}>取得中…</p>}
+    {wInfo&&<p className="mu num" style={{marginTop:8}}>{wInfo}</p>}
+    {wErr&&<p className="mu" style={{marginTop:8,color:'var(--ac)'}}>{wErr}</p>}
+    <button className="btn" style={{marginTop:12}} onClick={run}>{reason?'AIで再判定':'AIチェックを開始'}</button>
+    <div className="flex" style={{marginTop:12,justifyContent:'center'}}>{demoPlan?<button className="lnk" onClick={endDemo}>デモを終了</button>:<button className="lnk" onClick={demo}>デモを実行（発表用：通院 × 雨）</button>}</div>
+    {reason&&<div style={{borderLeft:'3px solid var(--ac)',padding:'4px 0 4px 14px',margin:'20px 0 0'}}>
+      <div className="flex"><span className="lab">ADVICE</span><button className="lnk" onClick={()=>speak(ai,reason)}>音声で聞く</button></div>
+      <p style={{fontSize:14}}>{reason}</p>
+    </div>}
+    <div className="sec" style={{marginTop:24,paddingBottom:0}}>
+      <div className="flex"><span className="lab">持ち物 {done}/{list.length}</span><button className="lnk" onClick={()=>setChecked({})}>リセット</button></div>
+      {list.map(i=><div key={i.id} className="row" onClick={()=>toggle(i.id)} role="checkbox" aria-checked={!!checked[i.id]}>
+        <span className={'box'+(checked[i.id]?' on':'')}>{checked[i.id]?'✓':''}</span>
+        <span className={checked[i.id]?'done':''} style={{flex:1,fontWeight:700}}>{i.text}</span>
+        {i.isAi&&<span className="tag">AI</span>}
+      </div>)}
+    </div>
+    {list.length>0&&done===list.length&&<p style={{margin:'20px 0',fontWeight:900,fontSize:18,color:'var(--ok)'}}>✓ 準備完了。いってらっしゃい。</p>}
+    <div className="sec" style={{marginTop:24}}>
+      <span className="lab">家族の確認</span>
+      {family.length===0&&<p className="mu" style={{margin:'8px 0'}}>名前を追加すると、出発前の確認時刻を記録できます。</p>}
+      {family.map(f=><div key={f.id} className="row" style={{padding:'10px 0'}}>
+        <span className="flex" style={{flex:1,justifyContent:'flex-start',gap:14}} onClick={()=>confirmMember(f.id)}>
+          <span className={'box'+(conf[f.id]?' on':'')} style={{borderRadius:'50%'}}>{conf[f.id]?'✓':''}</span>
+          <span><b>{f.name}</b><br/><span className="mu num">{conf[f.id]?'確認 '+conf[f.id]:'確認待ち'}</span></span>
+        </span>
+        <button className="mu" onClick={()=>delMember(f.id)} aria-label="削除">✕</button>
+      </div>)}
+      <div className="flex" style={{marginTop:12}}>
+        <input placeholder="家族の名前" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addMember()}}/>
+        <button className="btn" style={{width:'auto',padding:'12px 18px',flex:'none'}} onClick={addMember}>追加</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function WeeklyView(){
+  const [idx,setIdx]=useState(new Date().getDay());
+  const [plan,setPlan]=useState('');
+  const [items,setItems]=useState(['']);
+  const [msg,setMsg]=useState('');
+  useEffect(()=>{
+    const s=jget('schedule_'+DAYKEYS[idx],null);
+    setPlan((s&&s.plan)||'');setItems(s&&s.items&&s.items.length?s.items:['']);setMsg('');
+  },[idx]);
+  const save=()=>{
+    const v=items.map(i=>i.trim()).filter(Boolean);
+    const ok=jset('schedule_'+DAYKEYS[idx],{plan:plan.trim(),items:v});
+    setItems(v.length?v:['']);setMsg(ok?'保存しました':'保存できませんでした');
+    setTimeout(()=>setMsg(''),2500);
+  };
+  return <div>
+    <p className="lab">WEEKLY</p>
+    <h1 className="big" style={{marginBottom:20}}>曜日ごとの設定</h1>
+    <div className="seg" style={{gridTemplateColumns:'repeat(7,1fr)'}}>{DAYS.map((d,i)=><button key={i} className={idx===i?'on':''} onClick={()=>setIdx(i)}>{d}</button>)}</div>
+    <p className="lab" style={{margin:'20px 0 8px'}}>予定・目的地（{DAYS[idx]}曜日）</p>
+    <input placeholder="例: 通院、学校、買い物" value={plan} onChange={e=>setPlan(e.target.value)}/>
+    <p className="lab" style={{margin:'20px 0 8px'}}>いつもの持ち物</p>
+    {items.map((it,i)=><div key={i} className="flex" style={{marginBottom:8}}>
+      <input placeholder={'持ち物 '+(i+1)} value={it} onChange={e=>setItems(items.map((x,j)=>j===i?e.target.value:x))}/>
+      <button className="mu" style={{padding:'0 10px'}} disabled={items.length===1} onClick={()=>setItems(items.filter((_,j)=>j!==i))} aria-label="削除">✕</button>
+    </div>)}
+    <button className="lnk" style={{margin:'4px 0 20px'}} onClick={()=>setItems([...items,''])}>＋ 持ち物を追加</button>
+    <button className="btn" onClick={save}>{DAYS[idx]}曜日を保存</button>
+    {msg&&<p className="mu" style={{textAlign:'center',marginTop:12}}>{msg}</p>}
+  </div>;
+}
+
+function LogView(){
+  const [hist]=useState(()=>jget('history',{}));
+  const [ask,setAsk]=useState(false);
+  const ks=Object.keys(hist).sort(),last=hist[ks[ks.length-1]],prev=hist[ks[ks.length-2]];
+  const dl=(a,b)=>(a==null||b==null)?'—':(a>b?'+':a<b?'−':'±')+Math.abs(a-b);
+  const st=[['完了率',last&&last.rate,'%','rate'],['持ち物数',last&&last.total,'','total'],['AI活用率',last&&last.adopt,'%','adopt']];
+  return <div>
+    <p className="lab">LOG</p>
+    <h1 className="big" style={{marginBottom:20}}>記録</h1>
+    {ks.length===0?<p className="mu">まだ記録がありません。今日の画面でチェックを入れると、ここに集計されます。</p>:<>
+      <div className="g3">{st.map(([l,v,u,k])=><div key={k}>
+        <span className="lab">{l}</span>
+        <p className="num big">{v==null?'—':v}<span style={{fontSize:13}}>{v==null?'':u}</span></p>
+        <p className="mu num">前回比 {dl(v,prev&&prev[k])}</p>
+      </div>)}</div>
+      <div className="sec" style={{marginTop:24}}>
+        <span className="lab">完了率 直近7日</span>
+        <div className="bars" style={{marginTop:12}}>{ks.slice(-7).map(k=><i key={k} style={{height:Math.max(hist[k].rate,2)+'%'}} title={k}/>)}</div>
+        <div className="flex" style={{marginTop:6}}>{ks.slice(-7).map(k=><span key={k} className="mu num" style={{flex:1,textAlign:'center',fontSize:10}}>{k.slice(5).replace('-','/')}</span>)}</div>
+      </div>
+    </>}
+    <div className="sec" style={{marginTop:24}}>
+      <span className="lab">VERSION</span>
+      <p style={{fontSize:14,marginTop:6}}><b>v3.0</b> UIを全面刷新（ライト／ダーク自動対応）。</p>
+      <p className="mu">統計はこの端末のブラウザに保存された記録から計算しています。</p>
+    </div>
+    <div className="sec" style={{marginTop:24}}>
+      <span className="lab">RESET</span>
+      <p className="mu" style={{margin:'6px 0 12px'}}>予定・持ち物設定・記録・チェック状態をすべて消して、初期状態に戻します。</p>
+      {ask?<div className="flex"><button className="btn" style={{background:'var(--ac)'}} onClick={wipe}>本当に初期化する</button><button className="lnk" style={{flex:'none'}} onClick={()=>setAsk(false)}>キャンセル</button></div>:<button className="btn" onClick={()=>setAsk(true)}>データを初期化</button>}
+    </div>
+  </div>;
+}
+
+const wipe=()=>{try{Object.keys(localStorage).filter(k=>/^(schedule_|daily_|family$|history$)/.test(k)).forEach(k=>localStorage.removeItem(k))}catch(e){}location.reload()};
+class Boundary extends React.Component{
+  constructor(p){super(p);this.state={e:false}}
+  static getDerivedStateFromError(){return {e:true}}
+  render(){return this.state.e?<div className="wrap"><p className="lab">ERROR</p><h1 className="big">問題が発生しました</h1><p className="mu" style={{margin:'12px 0 20px'}}>保存データを初期化すると直る場合があります。</p><button className="btn" onClick={wipe}>データを初期化して再読み込み</button></div>:this.props.children}
+}
+function App(){
+  const [tab,setTab]=useState('check');
+  return <>
+    <Boundary><main className="wrap">{tab==='check'?<CheckView/>:tab==='weekly'?<WeeklyView/>:<LogView/>}</main></Boundary>
+    <nav className="bar">{[['check','今日'],['weekly','週間設定'],['log','記録']].map(([k,l])=><button key={k} className={tab===k?'on':''} onClick={()=>setTab(k)}>{l}</button>)}</nav>
+  </>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
