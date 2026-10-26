@@ -66,6 +66,14 @@ input:focus,button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
 @media(min-width:760px){.wrap.wide{max-width:1180px}.dash{grid-template-columns:1fr 1fr}.span2{grid-column:1/-1}}
 @media(min-width:760px) and (max-width:1099px){.colC{grid-column:1/-1;grid-template-columns:1fr 1fr}}
 @media(min-width:1100px){.dash{grid-template-columns:1fr 1.05fr .95fr}}
+.hs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-top:10px}
+.hc{flex:none;width:62px;text-align:center;border:1px solid var(--ln);padding:10px 0;background:var(--bg)}
+.hc b{display:block;font-size:17px}
+.map{position:relative;aspect-ratio:1;overflow:hidden;background:var(--ln);margin:10px 0}
+.map img{position:absolute;width:33.5%;height:33.5%;display:block}
+.pin{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--ac);border:2px solid #fff;transform:translate(-50%,-50%);box-shadow:0 0 0 2px rgba(0,0,0,.35)}
+.bar{grid-template-columns:repeat(4,1fr)}
+@media(min-width:1100px){.dash .rd{grid-column:auto}}
 </style>
 </head>
 <body>
@@ -191,6 +199,7 @@ function CheckView(){
         if(!place.trim())throw new Error('地名を入力してください');
         const g=await geocode(place.trim());lat=g.lat;lon=g.lon;name=g.name;
       }
+      jset('wloc',{lat,lon,name});
       const r=await fetchWeather(lat,lon);
       apply(r.idx);setWInfo(name+'：'+r.info);
     }catch(e){setWErr(e instanceof TypeError?'通信できませんでした。公開ページでは外部通信が制限されます。GitHub Pagesなど自分のURLで開くと使えます。':(e.message||'取得に失敗しました'))}
@@ -370,6 +379,135 @@ function LogView(){
   </div>;
 }
 
+const WG=c=>c<=2?'晴':c===3?'曇':(c===45||c===48)?'霧':(c>=51&&c<=57)?'霧雨':((c>=61&&c<=67)||(c>=80&&c<=82))?'雨':((c>=71&&c<=77)||c===85||c===86)?'雪':c>=95?'雷':'—';
+const emsg=e=>e instanceof TypeError?'通信できませんでした。公開ページでは外部通信が制限されます。GitHub Pagesなど自分のURLで開くと使えます。':(e.message||'取得に失敗しました');
+const jt=v=>{const d=new Date(Date.UTC(+v.slice(0,4),+v.slice(4,6)-1,+v.slice(6,8),+v.slice(8,10),+v.slice(10,12)));return pad(d.getHours())+':'+pad(d.getMinutes())};
+function Bars({vals,labels,max,hi,unit}){
+  return <div>
+    <div className="bars" style={{gap:3}}>{vals.map((v,i)=><i key={i} title={labels[i]+' '+v+unit} style={{height:Math.max(v/max*100,2)+'%',background:v>=hi?'var(--ac)':'var(--ink)'}}/>)}</div>
+    <div style={{display:'flex',gap:3,marginTop:6}}>{labels.map((l,i)=><span key={i} className="mu num" style={{flex:'1 1 0',minWidth:0,fontSize:10,whiteSpace:'nowrap',overflow:'visible'}}>{l}</span>)}</div>
+  </div>;
+}
+
+function WeatherView(){
+  const [loc,setLoc]=useState(()=>jget('wloc',null));
+  const [place,setPlace]=useState('');
+  const [data,setData]=useState(null);
+  const [err,setErr]=useState('');
+  const [rerr,setRerr]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [frames,setFrames]=useState([]);
+  const [fi,setFi]=useState(0);
+  const [play,setPlay]=useState(false);
+  const [z,setZ]=useState(8);
+  useEffect(()=>{
+    if(!loc)return;
+    let off=false;
+    setBusy(true);setErr('');setRerr('');
+    (async()=>{
+      try{
+        const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=temperature_2m,precipitation_probability,precipitation,weather_code&minutely_15=precipitation&forecast_hours=24&forecast_minutely_15=24&timezone=Asia%2FTokyo`);
+        if(!r.ok)throw new Error('天気サービスがエラーを返しました（'+r.status+'）');
+        const j=await r.json();if(!off)setData(j);
+      }catch(e){if(!off)setErr(emsg(e))}
+      try{
+        const [a,b]=await Promise.all(['N1','N2'].map(k=>fetch(`https://www.jma.go.jp/bosai/jmatile/data/nowc/targetTimes_${k}.json`).then(r=>r.json())));
+        const f=(arr,fc)=>arr.map(x=>({b:x.basetime,v:x.validtime,fc})).sort((p,q)=>p.v<q.v?-1:1);
+        const obs=f(a,false).slice(-12),fc=f(b,true);
+        if(!off){setFrames([...obs,...fc]);setFi(Math.max(obs.length-1,0))}
+      }catch(e){if(!off)setRerr(emsg(e))}
+      if(!off)setBusy(false);
+    })();
+    return()=>{off=true};
+  },[loc]);
+  useEffect(()=>{if(!play||!frames.length)return;const t=setInterval(()=>setFi(i=>(i+1)%frames.length),700);return()=>clearInterval(t)},[play,frames.length]);
+
+  const search=async()=>{
+    setErr('');
+    try{
+      if(!place.trim())throw new Error('地名を入力してください');
+      const g=await geocode(place.trim());const l={lat:g.lat,lon:g.lon,name:g.name};jset('wloc',l);setLoc(l);
+    }catch(e){setErr(emsg(e))}
+  };
+  const gps=()=>{
+    setErr('');
+    if(!navigator.geolocation){setErr('この端末は位置情報に対応していません');return}
+    navigator.geolocation.getCurrentPosition(p=>{const l={lat:p.coords.latitude,lon:p.coords.longitude,name:'現在地'};jset('wloc',l);setLoc(l)},e=>setErr(e.message||'位置情報を取得できませんでした'),{timeout:8000});
+  };
+
+  const h=data&&data.hourly,m=data&&data.minutely_15;
+  const hv=h?h.time.map((t,i)=>({t:t.slice(11,13)+'時',c:h.weather_code[i],T:h.temperature_2m[i],p:h.precipitation_probability[i]||0,mm:h.precipitation[i]||0})):[];
+  const ri=hv.findIndex(x=>x.mm>=0.1);
+  const sum=!h?'':ri<0?'今後24時間は雨の予報はありません':ri===0?'現在、雨が降っています（'+hv[0].mm+' mm/h）':hv[ri].t+'ごろから雨の予報（'+hv[ri].mm+' mm/h）';
+  const mv=m&&m.precipitation?m.time.map((t,i)=>({l:i%4===0?t.slice(11,16):'',v:m.precipitation[i]||0})):[];
+  const rv=mv.length?mv:hv.map((x,i)=>({l:i%4===0?x.t:'',v:x.mm}));
+  const rmax=Math.max(1,...rv.map(x=>x.v)),pmax=Math.max(0,...hv.map(x=>x.p));
+
+  const lat=loc?loc.lat:0,lon=loc?loc.lon:0,n=Math.pow(2,z),rad=lat*Math.PI/180;
+  const tx=(lon+180)/360*n,ty=(1-Math.log(Math.tan(rad)+1/Math.cos(rad))/Math.PI)/2*n;
+  const x0=Math.floor(tx)-1,y0=Math.floor(ty)-1,fr=frames[fi];
+
+  return <div className="dash">
+    <div className="card span2">
+      <p className="lab">WEATHER</p>
+      <h1 className="big" style={{margin:'4px 0'}}>{loc?loc.name:'場所を選んでください'}</h1>
+      {sum&&<p style={{fontWeight:700}}>{sum}</p>}
+      {!loc&&<p className="mu">地名を入力するか現在地を使うと、1時間ごとの天気・降水確率・降水量・雨雲レーダーを表示します。</p>}
+      <div className="flex" style={{marginTop:12}}>
+        <input placeholder="地名（例：潮来市）" value={place} onChange={e=>setPlace(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')search()}}/>
+        <button className="btn" style={{width:'auto',padding:'12px 16px',flex:'none'}} onClick={search}>取得</button>
+      </div>
+      <div className="flex" style={{marginTop:8,justifyContent:'flex-start',gap:18}}>
+        <button className="lnk" onClick={gps}>現在地を使う</button>
+        {busy&&<span className="mu">読み込み中…</span>}
+      </div>
+      {err&&<p className="mu" style={{marginTop:8,color:'var(--ac)'}}>{err}</p>}
+    </div>
+
+    {hv.length>0&&<div className="card span2">
+      <span className="lab">1時間ごとの天気（24時間）</span>
+      <div className="hs">{hv.map((x,i)=><div key={i} className="hc">
+        <span className="mu num">{x.t}</span><b>{WG(x.c)}</b>
+        <span className="num" style={{fontWeight:700}}>{Math.round(x.T)}℃</span><br/>
+        <span className="mu num" style={{color:x.p>=50?'var(--ac)':undefined}}>{x.p}%</span>
+      </div>)}</div>
+    </div>}
+
+    {hv.length>0&&<div className="card">
+      <div className="flex"><span className="lab">降水確率（1時間ごと）</span><span className="mu num">最大 {pmax}%</span></div>
+      <div style={{marginTop:12}}><Bars vals={hv.map(x=>x.p)} labels={hv.map((x,i)=>i%3===0?x.t.slice(0,2):'')} max={100} hi={50} unit="%"/></div>
+      <p className="mu" style={{marginTop:6}}>赤い棒は50%以上。横軸は時刻（時）。</p>
+    </div>}
+
+    {rv.length>0&&<div className="card">
+      <div className="flex"><span className="lab">{mv.length?'降水量（15分ごと・6時間）':'降水量（1時間ごと）'}</span><span className="mu num">最大 {Math.max(0,...rv.map(x=>x.v))} mm</span></div>
+      <div style={{marginTop:12}}><Bars vals={rv.map(x=>x.v)} labels={rv.map(x=>x.l)} max={rmax} hi={1} unit=" mm"/></div>
+      <p className="mu" style={{marginTop:6}}>赤い棒は1mm以上。傘の目安は0.1mm〜。</p>
+    </div>}
+
+    {loc&&<div className="card span2 rd">
+      <div className="flex"><span className="lab">雨雲レーダー（気象庁）</span><span className="mu num">{fr?jt(fr.v)+(fr.fc?'（予測）':'（実況）'):'—'}</span></div>
+      <div className="map">
+        {[0,1,2].map(j=>[0,1,2].map(i=>{
+          const X=x0+i,Y=y0+j,st={left:(i*100/3)+'%',top:(j*100/3)+'%'};
+          return <React.Fragment key={i+'-'+j}>
+            <img alt="" src={`https://cyberjapandata.gsi.go.jp/xyz/pale/${z}/${X}/${Y}.png`} style={st}/>
+            {fr&&<img alt="" src={`https://www.jma.go.jp/bosai/jmatile/data/nowc/${fr.b}/none/${fr.v}/surf/hrpns/${z}/${X}/${Y}.png`} style={{...st,opacity:.8}} onError={e=>{e.target.style.display='none'}}/>}
+          </React.Fragment>;
+        }))}
+        <span className="pin" style={{left:((tx-x0)/3*100)+'%',top:((ty-y0)/3*100)+'%'}}/>
+      </div>
+      {rerr&&<p className="mu" style={{color:'var(--ac)'}}>{rerr}</p>}
+      <div className="flex">
+        <button className="btn" style={{width:'auto',padding:'10px 16px',flex:'none'}} onClick={()=>setPlay(!play)}>{play?'停止':'再生'}</button>
+        <input type="range" min="0" max={Math.max(frames.length-1,0)} value={fi} onChange={e=>{setPlay(false);setFi(+e.target.value)}} style={{padding:0,border:0,background:'none'}}/>
+        <span className="flex" style={{gap:8,flex:'none'}}><button className="lnk" onClick={()=>setZ(Math.max(6,z-1))}>－</button><span className="num">z{z}</span><button className="lnk" onClick={()=>setZ(Math.min(10,z+1))}>＋</button></span>
+      </div>
+      <p className="mu" style={{marginTop:8}}>地図：国土地理院／雨雲：気象庁（約5分更新）。色が濃いほど強い雨。日本国内向けです。</p>
+    </div>}
+  </div>;
+}
+
 const wipe=()=>{try{Object.keys(localStorage).filter(k=>/^(schedule_|daily_|family$|history$)/.test(k)).forEach(k=>localStorage.removeItem(k))}catch(e){}location.reload()};
 class Boundary extends React.Component{
   constructor(p){super(p);this.state={e:false}}
@@ -385,9 +523,9 @@ function App(){
     try{localStorage.setItem('theme',theme)}catch(e){}
   },[theme]);
   return <>
-    <Boundary><main className={'wrap'+(tab==='check'?' wide':'')}>{tab==='check'?<CheckView/>:tab==='weekly'?<WeeklyView/>:<LogView/>}</main></Boundary>
+    <Boundary><main className={'wrap'+(tab==='check'||tab==='wx'?' wide':'')}>{tab==='check'?<CheckView/>:tab==='wx'?<WeatherView/>:tab==='weekly'?<WeeklyView/>:<LogView/>}</main></Boundary>
     <div className="seg theme" role="group" aria-label="表示モード">{[['auto','自動'],['light','ライト'],['dark','ダーク']].map(([k,l])=><button key={k} className={theme===k?'on':''} aria-pressed={theme===k} onClick={()=>setTheme(k)}>{l}</button>)}</div>
-    <nav className="bar">{[['check','今日'],['weekly','週間設定'],['log','記録']].map(([k,l])=><button key={k} className={tab===k?'on':''} onClick={()=>setTab(k)}>{l}</button>)}</nav>
+    <nav className="bar">{[['check','今日'],['wx','天気'],['weekly','週間設定'],['log','記録']].map(([k,l])=><button key={k} className={tab===k?'on':''} onClick={()=>setTab(k)}>{l}</button>)}</nav>
   </>;
 }
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
